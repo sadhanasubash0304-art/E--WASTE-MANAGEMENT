@@ -1,0 +1,93 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: ecocircuit-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ecocircuit
+      POSTGRES_USER: ecocircuit_user
+      POSTGRES_PASSWORD: ecocircuit_secret_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./services/backend/src/db/migrations:/docker-entrypoint-initdb.d/migrations
+      - ./services/backend/src/db/seeds:/docker-entrypoint-initdb.d/seeds
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ecocircuit_user -d ecocircuit"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: ecocircuit-redis
+    restart: always
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: services/backend/Dockerfile
+    container_name: ecocircuit-backend
+    restart: on-failure
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      DATABASE_URL: postgresql://ecocircuit_user:ecocircuit_secret_password@postgres:5432/ecocircuit
+      REDIS_URL: redis://redis:6379
+      AI_SERVICE_URL: http://ai-service:8000
+      JWT_SECRET: dev_jwt_access_secret_key_change_in_prod
+      JWT_REFRESH_SECRET: dev_jwt_refresh_secret_key_change_in_prod
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./services/backend:/app/services/backend
+      - ./packages/common:/app/packages/common
+
+  ai-service:
+    build:
+      context: ./services/ai-service
+      dockerfile: Dockerfile
+    container_name: ecocircuit-ai-service
+    restart: on-failure
+    environment:
+      PORT: 8000
+      ENV: development
+      CONFIDENCE_THRESHOLD: 0.85
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./services/ai-service:/app
+
+  admin-web:
+    build:
+      context: .
+      dockerfile: apps/admin/Dockerfile
+    container_name: ecocircuit-admin
+    restart: on-failure
+    ports:
+      - "3000:3000"
+    environment:
+      VITE_API_URL: http://localhost:4000
+      VITE_WS_URL: ws://localhost:4000
+
+volumes:
+  postgres_data:
+  redis_data:

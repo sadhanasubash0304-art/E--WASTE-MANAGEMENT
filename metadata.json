@@ -1,0 +1,6 @@
+{
+  "name": "EcoCircuit - Smart E-Waste Management Platform",
+  "description": "Smart E-Waste Management and Circular Economy Platform with AI-powered sorting assistant, consumer gadget valuation, points ledger, and admin console.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
